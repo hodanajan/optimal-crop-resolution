@@ -1,6 +1,6 @@
 """
 Aspect Ratio Calculator node for ComfyUI
-Finds the optimal crop dimensions to match the nearest aspect ratio
+Finds the optimal crop dimensions to match the nearest aspect ratio or uses a specified one
 """
 
 class AspectRatioCalculatorNode:
@@ -20,19 +20,31 @@ class AspectRatioCalculatorNode:
                     "min": 1,
                     "max": 8192
                 }),
-                "use_5_12": ("BOOLEAN", {"default": True}),  # 640 x 1536
-                "use_4_7": ("BOOLEAN", {"default": True}),   # 768 x 1344
-                "use_13_19": ("BOOLEAN", {"default": True}), # 832 x 1216
-                "use_7_9": ("BOOLEAN", {"default": True}),   # 896 x 1152
-                "use_1_1": ("BOOLEAN", {"default": True}),   # 1024 x 1024
-                "use_9_7": ("BOOLEAN", {"default": True}),   # 1152 x 896
-                "use_19_13": ("BOOLEAN", {"default": True}), # 1216 x 832
-                "use_7_4": ("BOOLEAN", {"default": True}),   # 1344 x 768
-                "use_12_5": ("BOOLEAN", {"default": True}),  # 1536 x 640
+            },
+            "optional": {
+                "use_5_12": ("BOOLEAN", {"default": True}),    # 640 x 1536
+                "use_4_7": ("BOOLEAN", {"default": True}),     # 768 x 1344
+                "use_13_19": ("BOOLEAN", {"default": True}),   # 832 x 1216
+                "use_7_9": ("BOOLEAN", {"default": True}),     # 896 x 1152
+                "use_1_1": ("BOOLEAN", {"default": True}),     # 1024 x 1024
+                "use_9_7": ("BOOLEAN", {"default": True}),     # 1152 x 896
+                "use_19_13": ("BOOLEAN", {"default": True}),   # 1216 x 832
+                "use_7_4": ("BOOLEAN", {"default": True}),     # 1344 x 768
+                "use_12_5": ("BOOLEAN", {"default": True}),    # 1536 x 640
                 "custom_ratios": ("STRING", {
                     "multiline": False,
                     "default": "",
                     "placeholder": "Optional: 21:9,32:9,etc"
+                }),
+                "force_aspect_ratio_width": ("INT", {
+                    "default": -1,
+                    "min": -1,
+                    "max": 8192,
+                }),
+                "force_aspect_ratio_height": ("INT", {
+                    "default": -1,
+                    "min": -1,
+                    "max": 8192,
                 }),
             }
         }
@@ -82,11 +94,26 @@ class AspectRatioCalculatorNode:
         custom = self.parse_custom_ratios(custom_ratios)
         return enabled + custom
 
-    def calculate(self, width, height, custom_ratios, **kwargs):
-        """Calculate the optimal crop resolution based on nearest aspect ratio"""
+    def calculate(self, width, height, force_aspect_ratio_width=-1, force_aspect_ratio_height=-1, custom_ratios="", **kwargs):
+        """Calculate the optimal crop resolution based on nearest aspect ratio or forced ratio"""
         current_ratio = width / height
         
-        # Get enabled ratios
+        # If forced aspect ratio is provided, use it
+        if force_aspect_ratio_width > 0 and force_aspect_ratio_height > 0:
+            closest_ratio = (force_aspect_ratio_width, force_aspect_ratio_height)
+            closest_ratio_float = force_aspect_ratio_width / force_aspect_ratio_height
+            
+            # Calculate new dimensions that maintain maximum area
+            if current_ratio > closest_ratio_float:
+                new_width = int(height * closest_ratio_float)
+                new_height = height
+            else:
+                new_width = width
+                new_height = int(width / closest_ratio_float)
+            
+            return (new_width, new_height, closest_ratio[0], closest_ratio[1])
+        
+        # Otherwise use enabled ratios
         enabled_ratios = self.get_enabled_ratios(custom_ratios, **kwargs)
         if not enabled_ratios:
             # If no ratios selected, return original dimensions and 1:1
@@ -102,11 +129,9 @@ class AspectRatioCalculatorNode:
         
         # Calculate new dimensions that maintain maximum area
         if current_ratio > closest_ratio_float:
-            # Image is too wide, adjust width
             new_width = int(height * closest_ratio_float)
             new_height = height
         else:
-            # Image is too tall, adjust height
             new_width = width
             new_height = int(width / closest_ratio_float)
         
