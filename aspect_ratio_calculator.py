@@ -103,13 +103,40 @@ class AspectRatioCalculatorNode:
             closest_ratio = (force_aspect_ratio_width, force_aspect_ratio_height)
             closest_ratio_float = force_aspect_ratio_width / force_aspect_ratio_height
             
-            # Calculate new dimensions that maintain maximum area
+            # Calculate new dimensions ensuring they're divisible by the ratio components
             if current_ratio > closest_ratio_float:
-                new_width = int(height * closest_ratio_float)
-                new_height = height
+                # Find the largest possible height units that fit within the original height
+                height_units = height // closest_ratio[1]
+                if height_units == 0:  # Handle extreme aspect ratios
+                    height_units = 1
+                new_height = height_units * closest_ratio[1]
+                new_width = height_units * closest_ratio[0]
+                
+                # If new_width exceeds original, scale down
+                if new_width > width:
+                    width_units = width // closest_ratio[0]
+                    new_width = width_units * closest_ratio[0]
+                    new_height = width_units * closest_ratio[1]
             else:
-                new_width = width
-                new_height = int(width / closest_ratio_float)
+                # Find the largest possible width units that fit within the original width
+                width_units = width // closest_ratio[0]
+                if width_units == 0:  # Handle extreme aspect ratios
+                    width_units = 1
+                new_width = width_units * closest_ratio[0]
+                new_height = width_units * closest_ratio[1]
+                
+                # If new_height exceeds original, scale down
+                if new_height > height:
+                    height_units = height // closest_ratio[1]
+                    new_height = height_units * closest_ratio[1]
+                    new_width = height_units * closest_ratio[0]
+            
+            # Ensure we never return 0 dimensions
+            if new_width == 0 or new_height == 0:
+                # Fall back to 1:1 ratio as minimum
+                new_size = min(width, height)
+                new_width = new_height = new_size
+                closest_ratio = (1, 1)
             
             return (new_width, new_height, closest_ratio[0], closest_ratio[1])
         
@@ -127,13 +154,40 @@ class AspectRatioCalculatorNode:
         closest_ratio = enabled_ratios[differences.index(min(differences))]
         closest_ratio_float = closest_ratio[0] / closest_ratio[1]
         
-        # Calculate new dimensions that maintain maximum area
+        # Calculate new dimensions ensuring they're divisible by the ratio components
         if current_ratio > closest_ratio_float:
-            new_width = int(height * closest_ratio_float)
-            new_height = height
+            # Find the largest possible height units that fit within the original height
+            height_units = height // closest_ratio[1]
+            if height_units == 0:  # Handle extreme aspect ratios
+                height_units = 1
+            new_height = height_units * closest_ratio[1]
+            new_width = height_units * closest_ratio[0]
+            
+            # If new_width exceeds original, scale down
+            if new_width > width:
+                width_units = width // closest_ratio[0]
+                new_width = width_units * closest_ratio[0]
+                new_height = width_units * closest_ratio[1]
         else:
-            new_width = width
-            new_height = int(width / closest_ratio_float)
+            # Find the largest possible width units that fit within the original width
+            width_units = width // closest_ratio[0]
+            if width_units == 0:  # Handle extreme aspect ratios
+                width_units = 1
+            new_width = width_units * closest_ratio[0]
+            new_height = width_units * closest_ratio[1]
+            
+            # If new_height exceeds original, scale down
+            if new_height > height:
+                height_units = height // closest_ratio[1]
+                new_height = height_units * closest_ratio[1]
+                new_width = height_units * closest_ratio[0]
+        
+        # Ensure we never return 0 dimensions
+        if new_width == 0 or new_height == 0:
+            # Fall back to 1:1 ratio as minimum
+            new_size = min(width, height)
+            new_width = new_height = new_size
+            closest_ratio = (1, 1)
         
         return (new_width, new_height, closest_ratio[0], closest_ratio[1])
 
