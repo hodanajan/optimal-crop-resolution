@@ -1,0 +1,14 @@
+[project]
+name = "optimal-crop-resolution"
+description = "ComfyUI node to calculate optimal resolution to crop the image to (from a list of aspect ratios)"
+version = "1.0.0"
+license = {file = "LICENSE"}
+
+[project.urls]
+Repository = "https://github.com/hodanajan/optimal-crop-resolution"
+#  Used by Comfy Registry https://comfyregistry.org
+
+[tool.comfy]
+PublisherId = ""
+DisplayName = "optimal-crop-resolution"
+Icon = ""
