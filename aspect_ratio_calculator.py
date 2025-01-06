@@ -22,15 +22,13 @@ class AspectRatioCalculatorNode:
                 }),
             },
             "optional": {
-                "use_5_12": ("BOOLEAN", {"default": True}),    # 640 x 1536
-                "use_4_7": ("BOOLEAN", {"default": True}),     # 768 x 1344
-                "use_13_19": ("BOOLEAN", {"default": True}),   # 832 x 1216
-                "use_7_9": ("BOOLEAN", {"default": True}),     # 896 x 1152
                 "use_1_1": ("BOOLEAN", {"default": True}),     # 1024 x 1024
-                "use_9_7": ("BOOLEAN", {"default": True}),     # 1152 x 896
-                "use_19_13": ("BOOLEAN", {"default": True}),   # 1216 x 832
-                "use_7_4": ("BOOLEAN", {"default": True}),     # 1344 x 768
-                "use_12_5": ("BOOLEAN", {"default": True}),    # 1536 x 640
+                "use_2_3": ("BOOLEAN", {"default": True}),     # 683 x 1024
+                "use_3_2": ("BOOLEAN", {"default": True}),     # 1024 x 683
+                "use_4_3": ("BOOLEAN", {"default": True}),     # 1024 x 768
+                "use_3_4": ("BOOLEAN", {"default": True}),     # 768 x 1024
+                "use_16_9": ("BOOLEAN", {"default": True}),    # 1024 x 576
+                "use_9_16": ("BOOLEAN", {"default": True}),    # 576 x 1024
                 "custom_ratios": ("STRING", {
                     "multiline": False,
                     "default": "",
@@ -56,15 +54,13 @@ class AspectRatioCalculatorNode:
 
     def __init__(self):
         self.ratios = {
-            "use_5_12": (5, 12),    # 640 x 1536
-            "use_4_7": (4, 7),      # 768 x 1344
-            "use_13_19": (13, 19),  # 832 x 1216
-            "use_7_9": (7, 9),      # 896 x 1152
             "use_1_1": (1, 1),      # 1024 x 1024
-            "use_9_7": (9, 7),      # 1152 x 896
-            "use_19_13": (19, 13),  # 1216 x 832
-            "use_7_4": (7, 4),      # 1344 x 768
-            "use_12_5": (12, 5),    # 1536 x 640
+            "use_2_3": (2, 3),      # 683 x 1024
+            "use_3_2": (3, 2),      # 1024 x 683
+            "use_4_3": (4, 3),      # 1024 x 768
+            "use_3_4": (3, 4),      # 768 x 1024
+            "use_16_9": (16, 9),    # 1024 x 576
+            "use_9_16": (9, 16),    # 576 x 1024
         }
 
     def parse_custom_ratios(self, custom_ratios_str):
@@ -94,102 +90,60 @@ class AspectRatioCalculatorNode:
         custom = self.parse_custom_ratios(custom_ratios)
         return enabled + custom
 
-    def calculate(self, width, height, force_aspect_ratio_width=-1, force_aspect_ratio_height=-1, custom_ratios="", **kwargs):
+    def calculate(self, width, height, force_aspect_ratio_width=-1, force_aspect_ratio_height=-1, 
+                 custom_ratios="", **kwargs):
         """Calculate the optimal crop resolution based on nearest aspect ratio or forced ratio"""
-        current_ratio = width / height
         
-        # If forced aspect ratio is provided, use it
-        if force_aspect_ratio_width > 0 and force_aspect_ratio_height > 0:
-            closest_ratio = (force_aspect_ratio_width, force_aspect_ratio_height)
-            closest_ratio_float = force_aspect_ratio_width / force_aspect_ratio_height
+        def calculate_dimensions_for_ratio(w, h, ratio_w, ratio_h):
+            """Calculate dimensions and pixel loss for a given ratio"""
+            current_r = w / h
+            target_r = ratio_w / ratio_h
             
-            # Calculate new dimensions ensuring they're divisible by the ratio components
-            if current_ratio > closest_ratio_float:
-                # Find the largest possible height units that fit within the original height
-                height_units = height // closest_ratio[1]
-                if height_units == 0:  # Handle extreme aspect ratios
-                    height_units = 1
-                new_height = height_units * closest_ratio[1]
-                new_width = height_units * closest_ratio[0]
+            if current_r > target_r:
+                height_units = h // ratio_h
+                new_height = height_units * ratio_h
+                new_width = height_units * ratio_w
                 
-                # If new_width exceeds original, scale down
-                if new_width > width:
-                    width_units = width // closest_ratio[0]
-                    new_width = width_units * closest_ratio[0]
-                    new_height = width_units * closest_ratio[1]
+                if new_width > w:
+                    width_units = w // ratio_w
+                    new_width = width_units * ratio_w
+                    new_height = width_units * ratio_h
             else:
-                # Find the largest possible width units that fit within the original width
-                width_units = width // closest_ratio[0]
-                if width_units == 0:  # Handle extreme aspect ratios
-                    width_units = 1
-                new_width = width_units * closest_ratio[0]
-                new_height = width_units * closest_ratio[1]
+                width_units = w // ratio_w
+                new_width = width_units * ratio_w
+                new_height = width_units * ratio_h
                 
-                # If new_height exceeds original, scale down
-                if new_height > height:
-                    height_units = height // closest_ratio[1]
-                    new_height = height_units * closest_ratio[1]
-                    new_width = height_units * closest_ratio[0]
+                if new_height > h:
+                    height_units = h // ratio_h
+                    new_height = height_units * ratio_h
+                    new_width = height_units * ratio_w
             
-            # Ensure we never return 0 dimensions
-            if new_width == 0 or new_height == 0:
-                # Fall back to 1:1 ratio as minimum
-                new_size = min(width, height)
-                new_width = new_height = new_size
-                closest_ratio = (1, 1)
-            
-            return (new_width, new_height, closest_ratio[0], closest_ratio[1])
+            pixel_loss = (w * h) - (new_width * new_height)
+            return new_width, new_height, pixel_loss
         
-        # Otherwise use enabled ratios
+        # If forced aspect ratio is provided
+        if force_aspect_ratio_width > 0 and force_aspect_ratio_height > 0:
+            new_width, new_height, _ = calculate_dimensions_for_ratio(
+                width, height, force_aspect_ratio_width, force_aspect_ratio_height
+            )
+            return (new_width, new_height, force_aspect_ratio_width, force_aspect_ratio_height)
+        
+        # Get enabled ratios
         enabled_ratios = self.get_enabled_ratios(custom_ratios, **kwargs)
         if not enabled_ratios:
-            # If no ratios selected, return original dimensions and 1:1
             return (width, height, 1, 1)
         
-        # Convert ratios to floats for comparison
-        ratio_values = [(ratio, ratio[0] / ratio[1]) for ratio in enabled_ratios]
+        # Calculate dimensions and pixel loss for each ratio
+        results = []
+        for ratio in enabled_ratios:
+            new_w, new_h, loss = calculate_dimensions_for_ratio(width, height, ratio[0], ratio[1])
+            results.append((new_w, new_h, ratio[0], ratio[1], loss))
         
-        # Find closest ratio
-        differences = [abs(current_ratio - ratio_float) for _, ratio_float in ratio_values]
-        closest_ratio = enabled_ratios[differences.index(min(differences))]
-        closest_ratio_float = closest_ratio[0] / closest_ratio[1]
+        # Choose ratio with minimum pixel loss
+        results.sort(key=lambda x: x[4])  # Sort by pixel loss
+        best_result = results[0]
         
-        # Calculate new dimensions ensuring they're divisible by the ratio components
-        if current_ratio > closest_ratio_float:
-            # Find the largest possible height units that fit within the original height
-            height_units = height // closest_ratio[1]
-            if height_units == 0:  # Handle extreme aspect ratios
-                height_units = 1
-            new_height = height_units * closest_ratio[1]
-            new_width = height_units * closest_ratio[0]
-            
-            # If new_width exceeds original, scale down
-            if new_width > width:
-                width_units = width // closest_ratio[0]
-                new_width = width_units * closest_ratio[0]
-                new_height = width_units * closest_ratio[1]
-        else:
-            # Find the largest possible width units that fit within the original width
-            width_units = width // closest_ratio[0]
-            if width_units == 0:  # Handle extreme aspect ratios
-                width_units = 1
-            new_width = width_units * closest_ratio[0]
-            new_height = width_units * closest_ratio[1]
-            
-            # If new_height exceeds original, scale down
-            if new_height > height:
-                height_units = height // closest_ratio[1]
-                new_height = height_units * closest_ratio[1]
-                new_width = height_units * closest_ratio[0]
-        
-        # Ensure we never return 0 dimensions
-        if new_width == 0 or new_height == 0:
-            # Fall back to 1:1 ratio as minimum
-            new_size = min(width, height)
-            new_width = new_height = new_size
-            closest_ratio = (1, 1)
-        
-        return (new_width, new_height, closest_ratio[0], closest_ratio[1])
+        return (best_result[0], best_result[1], best_result[2], best_result[3])
 
 # This part is required to register the node with ComfyUI
 NODE_CLASS_MAPPINGS = {
